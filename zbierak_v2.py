@@ -15,6 +15,8 @@ LEVELS = [1, 2, 3, 4]
 
 VILLAGES = [
     {"name": "001_blocnix", "url": "https://pl230.plemiona.pl/game.php?village=6603&screen=place&mode=scavenge"},
+    {"name": "002_blocnix", "url": "https://pl230.plemiona.pl/game.php?village=6437&screen=place&mode=scavenge"},
+    {"name": "003_blocnix", "url": "https://pl230.plemiona.pl/game.php?village=3416&screen=place&mode=scavenge"}
 ]
 
 BASE = "/html/body/table/tbody/tr[2]/td[2]/table[3]/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td/div/div/div[2]"
@@ -24,19 +26,18 @@ START_XPATH = BASE + "/div[{lvl}]/div[3]/div/div[2]/a[1]"
 
 ZERO_WAIT_SECONDS = 5
 POST_START_COOLDOWN = 15
-NEAR_FINISH_THRESHOLD = 30
+NEAR_FINISH_THRESHOLD = 307
 
-V7_INTERVAL = 30 * 60
-
-LOOP_SLEEP_RUNNING = 1
+LOOP_SLEEP_RUNNING = 17
 LOOP_SLEEP_STOPPED = 0.2
 VILLAGE_SWITCH_DELAY = 1.0
+PERIODIC_CHECK_INTERVAL = 1800  # 30 minut
 
 # =====================
 # AUTO START
 # =====================
 SCHEDULED_START = True
-START_DELAY = "00:05"
+START_DELAY = "00:02"
 
 # =====================
 # DRIVER7
@@ -57,10 +58,12 @@ for _ in VILLAGES:
     village_states.append({
         "pending_restart": {},
         "cooldown_until": {},
-        "last_v7": time.time(),
+        "started_levels": set(),
+        "blocked_levels": {},
     })
 
 current_village_idx = 0
+next_periodic_check = time.time() + PERIODIC_CHECK_INTERVAL
 
 t_was_down = False
 y_was_down = False
@@ -137,10 +140,31 @@ def is_zero(t):
 
 def parse_time(t):
     try:
-        h, m, s = map(int, t.split(":"))
+        h, m, s = map(int, t.split("." if "." in t else ":"))
         return h * 3600 + m * 60 + s
     except:
         return 999999
+
+
+def format_seconds(secs):
+    if secs >= 999999:
+        return "--:--:--"
+    h = secs // 3600
+    m = (secs % 3600) // 60
+    s = secs % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+def get_button_text(lvl):
+    try:
+        el = driver.find_element(By.XPATH, START_XPATH.format(lvl=lvl))
+        return el.text.strip()
+    except:
+        return ""
+
+
+def is_button_unlocked(lvl):
+    return "Odblokowanie" in get_button_text(lvl)
 
 
 def click_start(lvl):
@@ -158,10 +182,6 @@ def click_start(lvl):
             time.sleep(2)
             return True
 
-        if attempt == 0:
-            press_seven()
-            time.sleep(0.5)
-
     return False
 
 
@@ -174,10 +194,6 @@ def press_zero():
 
 def press_v():
     keyboard.press_and_release("v")
-
-
-def press_seven():
-    keyboard.press_and_release("7")
 
 
 # =====================
@@ -228,75 +244,160 @@ while True:
         time.sleep(LOOP_SLEEP_STOPPED)
         continue
 
-    now_ts = time.time()
-
-    village = VILLAGES[current_village_idx]
-    state = village_states[current_village_idx]
-    open_village(village)
-
     # =====================
-    # V7
+    # ZBIERANIE DANYCH Z WIOSEK
     # =====================
-    if now_ts - state["last_v7"] >= V7_INTERVAL:
-        time.sleep(3)
-        press_seven()
-        state["last_v7"] = now_ts
+    village_timers = {}
+    active_timer_entries = []
+    zero_timer_entries = []
+    ready_candidates = []
+    any_zero_ready_or_blocked_global = False
+    
+    for village_idx in range(len(VILLAGES)):
+        close_alert_if_present()
+        
+        village = VILLAGES[village_idx]
+        state = village_states[village_idx]
+        open_village(village)
+        
+        now_ts = time.time()
+        timers = {lvl: get_timer(lvl) for lvl in LEVELS}
+        min_time = 999999
+        
+        active_times = []
+        any_zero_ready_or_blocked = False
+        
+        for lvl in LEVELS:
+            t = timers[lvl]
+            secs = parse_time(t)
 
-    # =====================
-    # TIMERS
-    # =====================
-    timers = {lvl: get_timer(lvl) for lvl in LEVELS}
+            if lvl in state["blocked_levels"]:
+                continue
 
-    ready = []
-    near_finish = False
+            if is_zero(t):
+                zero_timer_entries.append({
+                    "secs": secs,
+                    "village_name": village["name"],
+                    "lvl": lvl,
+                })
+                
+                if lvl not in state["pending_restart"]:
+                    state["pending_restart"][lvl] = now_ts
+                    continue
 
-    for lvl in LEVELS:
-        t = timers[lvl]
-        secs = parse_time(t)
+                if now_ts - state["pending_restart"][lvl] < ZERO_WAIT_SECONDS:
+                    continue
 
-        if is_zero(t):
-            if lvl not in state["pending_restart"]:
-                state["pending_restart"][lvl] = now_ts
-            elif now_ts - state["pending_restart"][lvl] >= ZERO_WAIT_SECONDS:
-                ready.append(lvl)
-        else:
+                if time.time() < state["cooldown_until"].get(lvl, 0):
+                    continue
+
+                if is_button_unlocked(lvl):
+                    state["blocked_levels"][lvl] = now_ts
+                    log(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] WIOSKA: {village['name']} | LVL: {lvl} | ZABLOKOWANY (pomijam)")
+                    continue
+
+                any_zero_ready_or_blocked = True
+                ready_candidates.append({
+                    "village_idx": village_idx,
+                    "village": village,
+                    "lvl": lvl,
+                })
+                continue
+
             state["pending_restart"].pop(lvl, None)
+            active_timer_entries.append({
+                "secs": secs,
+                "village_name": village["name"],
+                "lvl": lvl,
+            })
+            active_times.append(secs)
 
-        if 0 < secs <= NEAR_FINISH_THRESHOLD:
-            near_finish = True
+        if active_times:
+            min_time = min(active_times)
+        elif any_zero_ready_or_blocked:
+            min_time = min(LOOP_SLEEP_RUNNING, 5)
+        
+        village_timers[village_idx] = min_time
+        any_zero_ready_or_blocked_global |= any_zero_ready_or_blocked
+        time.sleep(0.5)
 
-    if near_finish and not ready:
-        current_village_idx = (current_village_idx + 1) % len(VILLAGES)
-        time.sleep(VILLAGE_SWITCH_DELAY)
+    # =====================
+    # ZNALEZIENIE NAJMNIEJSZEGO CZASU
+    # =====================
+    min_global_time = min(village_timers.values())
+    wait_target = None
+    wait_on_max = False
+    if active_timer_entries:
+        min_entry = min(active_timer_entries, key=lambda e: e["secs"])
+        max_entry = max(active_timer_entries, key=lambda e: e["secs"])
+        if max_entry["secs"] - min_entry["secs"] < 300:
+            wait_target = {
+                "entry": max_entry,
+                "label": "NAJDŁUŻSZY"
+            }
+            min_global_time = max_entry["secs"]
+            wait_on_max = True
+        else:
+            wait_target = {
+                "entry": min_entry,
+                "label": "NAJKRÓTSZY"
+            }
+            min_global_time = min_entry["secs"]
+    elif zero_timer_entries and any_zero_ready_or_blocked_global:
+        wait_target = {
+            "entry": min(zero_timer_entries, key=lambda e: e["secs"]),
+            "label": "NAJKRÓTSZY"
+        }
+        min_global_time = min(LOOP_SLEEP_RUNNING, 5)
+
+    if min_global_time == 999999:
+        time.sleep(LOOP_SLEEP_RUNNING)
         continue
 
+    if ready_candidates and not wait_on_max:
+        for candidate in ready_candidates:
+            village = candidate["village"]
+            lvl = candidate["lvl"]
+            open_village(village)
+            press_zero()
+            time.sleep(1)
+            started = click_start(lvl)
+
+            if started:
+                log_start(lvl, village["name"])
+                state = village_states[candidate["village_idx"]]
+                state["cooldown_until"][lvl] = time.time() + POST_START_COOLDOWN
+                state["started_levels"].add(lvl)
+                actual_timer = get_timer(lvl)
+                actual_secs = parse_time(actual_timer)
+                if actual_secs < min_time:
+                    min_time = actual_secs
+            else:
+                log(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] WIOSKA: {village['name']} | LVL: {lvl} | FAILED")
+
     # =====================
-    # EXECUTION
+    # CZEKANIE NA NAJMNIEJSZY CZAS + BUFFER
     # =====================
-    while ready:
-        lvl = max(ready)
+    wait_time = min_global_time + 3
+    while wait_time > 0:
+        close_alert_if_present()
 
-        if time.time() < state["cooldown_until"].get(lvl, 0):
-            ready.remove(lvl)
-            continue
+        now_ts = time.time()
+        if now_ts >= next_periodic_check:
+            print("\nPERIODICZNY SPRAWDZANIE TIMERA - PONOWNY SKAN")
+            next_periodic_check = now_ts + PERIODIC_CHECK_INTERVAL
+            break
 
-        if not is_zero(get_timer(lvl)):
-            ready.remove(lvl)
-            continue
-
-        press_zero()
-        time.sleep(1)
-        started = click_start(lvl)
-
-        if started:
-            log_start(lvl, village["name"])
-            state["cooldown_until"][lvl] = time.time() + POST_START_COOLDOWN
-            log_finish(lvl, village["name"])
+        if wait_target is not None:
+            target = wait_target["entry"]
+            target_time = format_seconds(target["secs"])
+            sys.stdout.write(
+                f"\rCZEKAJE: {wait_time}s na {wait_target['label']} {target_time} - {target['village_name']} LVL {target['lvl']}"
+            )
         else:
-            log(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] WIOSKA: {village['name']} | LVL: {lvl} | FAILED")
+            sys.stdout.write(f"\rCZEKAJE: {wait_time}s (timer + buffer)")
+        sys.stdout.flush()
+        time.sleep(1)
+        wait_time -= 1
 
-        ready.remove(lvl)
-        time.sleep(2)
-
-    current_village_idx = (current_village_idx + 1) % len(VILLAGES)
-    time.sleep(LOOP_SLEEP_RUNNING)
+    print("\nCZAS OSIĄGNIĘTY - PONOWNE SKANOWANIE")
