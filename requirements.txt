@@ -1,0 +1,11 @@
+# Zależności dla zbierak_v2.py
+# Python 3.10 lub nowszy
+#
+# Poza pip (wymagane do uruchomienia):
+# - Google Chrome (Selenium 4.6+ sam pobiera pasujący ChromeDriver)
+#
+# Instalacja:
+#   pip install -r requirements.txt
+
+selenium>=4.15.0
+keyboard>=0.13.5

@@ -1,0 +1,112 @@
+pasek skrótów:
+###############################################
+
+javascript:
+var settings = {
+max_ressources: '1500',
+archers: '1',
+skip_level_1: '0'
+};
+
+var settings_spear = {
+untouchable: '0',
+max_unit_number: '9999',
+conditional_safeguard: '0'
+};
+
+var settings_sword = {
+untouchable: '0',
+max_unit_number: '0',
+conditional_safeguard: '0'
+};
+
+var settings_axe = {
+untouchable: '0',
+max_unit_number: '0',
+conditional_safeguard: '0'
+};
+
+var settings_archer = {
+untouchable: '0',
+max_unit_number: '0',
+conditional_safeguard: '0'
+};
+
+var settings_light = {
+untouchable: '0',
+max_unit_number: '0',
+conditional_safeguard: '0'
+};
+
+var settings_marcher = {
+untouchable: '0',
+max_unit_number: '0',
+conditional_safeguard: '0'
+};
+
+var settings_heavy = {
+untouchable: '0',
+max_unit_number: '0',
+conditional_safeguard: '0'
+};
+
+$.getScript('https://media.innogamescdn.com/com_DS_PL/skrypty/Asystent_Zbieracza.js');
+void(0);
+
+###############################################
+1. skrypt
+
+- zmienia sie "max_ressources: '1500'" w zależności od tego ile chcemy najwiecej jednostek wysyłać oraz czas 
+500 drewna
+500 kamienia = max_ressources: '1500' ~ 1040 pika lub 325lk
+500 stali
+
+
+- untouchable: '0', ustala sie ile danej jednostki zawsze ma byc zostawione (niewyslane na zbieraka)
+
+- max_unit_number: '9999' lub '0', gdy chcemy wysyłać dana jednostke ustawiamy na wartość inna niż 0 (to ze damy 1500 nie oznacza ze wysle tylko 1500 pika itp)
+lecz jesli ustawimy 0 to ta jednostka będzie całkowicie pomijana ze skryptu.
+
+###############################################
+2. ustawienia w kodzie linie 27-35
+
+VILLAGES = [
+    {"name": "001_blocnix", "url": "https://pl230.plemiona.pl/game.php?village=6603&screen=place&mode=scavenge"},
+    {"name": "002_blocnix", "url": "https://pl230.plemiona.pl/game.php?village=6437&screen=place&mode=scavenge"},
+    {"name": "003_blocnix", "url": "https://pl230.plemiona.pl/game.php?village=3416&screen=place&mode=scavenge"},
+]
+
+# Auto-start bota po uruchomieniu skryptu
+SCHEDULED_START = True   # True = bot włączy się sam po START_DELAY | False = tylko klawisz T
+START_DELAY = "00:02"    # Opóźnienie przed auto-startem, format HH:MM (np. "00:02" = 2 minuty)
+
+- w name dajemy jak chcemy by kod opisywał wioske moze byc jakakolwiek nazwa, niekoniecznie akurat nazwa twojej wioski
+- w url dajemy url prowadzący do zbieraka w danej wiosce czyli dla kazdej wioski zmienia sie tylko village=xxxx
+
+- autostart jest właczony w formacie hh:mm (czas za jaki program ma zacząć działać)
+- zmiana na False wyłącza automatyczny start
+
+###############################################
+3. Start/Stop
+
+- podczas wyłączonego autostartu jedyną opcją włączenia kodu jest przytrzymanie "T" na klawiaturze w oknie chrome
+- by zatrzymac kod w dowolnym momencie analogicznie trzeba przytrzymać tylko ze przycisk "Y"
+- i ponownie by uruchomić trzeba kliknąć "T"
+
+###############################################
+4. zamkniecie chrome/terminala 
+-jesli zamkniemy chrome lub terminal, nalezy zamknąć chrome i ponownie otworzyc terminal
+
+###############################################
+5. Cos od siebie musisz działać
+- po uruchomieniu sie kodu musisz samemu sie zalogowac bo zawsze pokazuje sie cappha :/
+- ochrona antybotowa też nie jest rozwiązywana przez kod (ale praktycznie ze sie nie pokazuje) :/
+
+###############################################
+6. Pytania/Problemy
+- w razie jakichkolwiek problemów lub pytan napisz do mnie:
+Discord: blazej_ek6
+
+###############################################
+7 Update:
+- w lini 38 mozliwość wyłączenia Stopu pod przyciskiem "Y"
