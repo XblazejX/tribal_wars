@@ -32,10 +32,11 @@ VILLAGES = [
 
 # Auto-start bota po uruchomieniu skryptu
 SCHEDULED_START = True   # True = bot włączy się sam po START_DELAY | False = tylko klawisz T
-START_DELAY = "00:02"    # Opóźnienie przed auto-startem, format HH:MM (np. "00:02" = 2 minuty)
+START_DELAY = "00:01"    # Opóźnienie przed auto-startem, format HH:MM (np. "00:02" = 2 minuty)
 
 # Sterowanie klawiszem Y
-STOP_ON_Y = True         # True = Y zatrzymuje bota | False = Y ignorowany (start tylko klawiszem T)
+STOP_ON_Y = False         # True = Y zatrzymuje bota | False = Y ignorowany (start tylko klawiszem T)
+
 
 
 # =============================================================================
@@ -50,9 +51,9 @@ TIMER_XPATH = BASE + "/div[{lvl}]/div[3]/div/ul/li[4]/span[2]"
 START_XPATH = BASE + "/div[{lvl}]/div[3]/div/div[2]/a[1]"
 
 # Czas oczekiwania po timerze 0:00:00 zanim poziom uznany za gotowy
-ZERO_WAIT_SECONDS = 5
+ZERO_WAIT_SECONDS = 3
 # Cooldown po udanym starcie poziomu (ochrona przed podwójnym kliknięciem)
-POST_START_COOLDOWN = 15
+POST_START_COOLDOWN = 5
 # Bufor dodawany do najdłuższego timera wioski przed planowanym startem
 READY_BUFFER_SECONDS = 5
 # Przerwa między kolejnymi kliknięciami START w tej samej wiosce
@@ -240,6 +241,16 @@ def press_zero():
         pass
 
 
+def full_boot_scan(trigger):
+    """Zachowuj się jak przy starcie: pełny skan wszystkich wiosek."""
+    log(f"[{now()}] RECOVER | PELNY_SKAN_START | TRIGGER: {trigger}")
+    for village_idx in range(len(VILLAGES)):
+        close_alert_if_present()
+        scan_village(village_idx, verbose=True)
+        time.sleep(0.5)
+
+
+
 def click_start(lvl):
     """
     Kliknij START dla poziomu. Sukces = timer zmienił się z zera na wartość > 0.
@@ -287,18 +298,27 @@ def scan_village(village_idx, verbose=False):
     has_pending_zero = False  # Zera, które jeszcze nie przeszły ZERO_WAIT_SECONDS
 
     for lvl in LEVELS:
-        if lvl in state["blocked_levels"]:
-            level_debug.append(f"LVL {lvl}: POMINIETY_BLOKADA")
-            continue
-
         t = timers[lvl]
 
-        # Poziom zablokowany w grze — zapamiętaj i nie wracaj
+        # Jeśli przycisk mówi "odblokuj" => poziom aktualnie zablokowany.
+        # W watchdog'u sprawdzamy to zawsze, żeby wykryć moment odblokowania.
         if is_button_unlocked(lvl):
+            # Czyści flagi związane z „0” żeby po odblokowaniu nie odpalić od razu.
+            state["pending_restart"].pop(lvl, None)
+
+            if lvl not in state["blocked_levels"]:
+                level_debug.append(f"LVL {lvl}: ZABLOKOWANY(przycisk odblokuj)")
+            else:
+                level_debug.append(f"LVL {lvl}: PONOWNIE_ZABLOKOWANY(przycisk odblokuj)")
+
             state["blocked_levels"][lvl] = now_ts
             blocked_now.append(lvl)
-            level_debug.append(f"LVL {lvl}: ZABLOKOWANY(przycisk odblokuj)")
             continue
+
+        # Jeśli wcześniej był zablokowany, a teraz przycisk nie ma "odblokuj" => odblokowany.
+        if lvl in state["blocked_levels"]:
+            state["blocked_levels"].pop(lvl, None)
+            level_debug.append(f"LVL {lvl}: ODBLOKOWANY(wcześniej blokada)")
 
         if is_zero(t):
             # Pierwsze zobaczenie zera — zacznij odliczać ZERO_WAIT_SECONDS
@@ -485,7 +505,7 @@ while True:
 
         print("\nAUTO START TRIGGERED")
         running = True
-        auto_started = True
+        auto_started = True    
 
     # --- Ręczne włączenie (T) / wyłączenie (Y, jeśli STOP_ON_Y) ---
     t_down = keyboard.is_pressed("t")

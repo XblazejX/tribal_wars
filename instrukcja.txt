@@ -110,3 +110,5 @@ Discord: blazej_ek6
 ###############################################
 7 Update:
 - w lini 38 mozliwość wyłączenia Stopu pod przyciskiem "Y"
+- poprawne wysyłanie podczas odblokowania zbieractwa w czasie korzystania z kodu
+- dodanie automatycznego wybierania swiata (powrotne wejscie w razie wygasniecia sesji) #todo
