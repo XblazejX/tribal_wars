@@ -111,4 +111,7 @@ Discord: blazej_ek6
 7 Update:
 - w lini 38 mozliwość wyłączenia Stopu pod przyciskiem "Y"
 - poprawne wysyłanie podczas odblokowania zbieractwa w czasie korzystania z kodu
+- x3 zabespieczenie przed złym wysłaniem jednostek na zbieractwo
 - dodanie automatycznego wybierania swiata (powrotne wejscie w razie wygasniecia sesji) #todo
+
+#działa przez 24h+ bez błędów (przynajmniej mi hehe)

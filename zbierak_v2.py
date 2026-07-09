@@ -32,7 +32,7 @@ VILLAGES = [
 
 # Auto-start bota po uruchomieniu skryptu
 SCHEDULED_START = True   # True = bot włączy się sam po START_DELAY | False = tylko klawisz T
-START_DELAY = "00:01"    # Opóźnienie przed auto-startem, format HH:MM (np. "00:02" = 2 minuty)
+START_DELAY = "00:02"    # Opóźnienie przed auto-startem, format HH:MM (np. "00:02" = 2 minuty)
 
 # Sterowanie klawiszem Y
 STOP_ON_Y = False         # True = Y zatrzymuje bota | False = Y ignorowany (start tylko klawiszem T)
@@ -51,9 +51,9 @@ TIMER_XPATH = BASE + "/div[{lvl}]/div[3]/div/ul/li[4]/span[2]"
 START_XPATH = BASE + "/div[{lvl}]/div[3]/div/div[2]/a[1]"
 
 # Czas oczekiwania po timerze 0:00:00 zanim poziom uznany za gotowy
-ZERO_WAIT_SECONDS = 3
+ZERO_WAIT_SECONDS = 5
 # Cooldown po udanym starcie poziomu (ochrona przed podwójnym kliknięciem)
-POST_START_COOLDOWN = 5
+POST_START_COOLDOWN = 15
 # Bufor dodawany do najdłuższego timera wioski przed planowanym startem
 READY_BUFFER_SECONDS = 5
 # Przerwa między kolejnymi kliknięciami START w tej samej wiosce
@@ -253,23 +253,40 @@ def full_boot_scan(trigger):
 
 def click_start(lvl):
     """
-    Kliknij START dla poziomu. Sukces = timer zmienił się z zera na wartość > 0.
-    Dwie próby z krótką przerwą.
+    Kliknij START dla poziomu.
+    Sukces = timer zmieni się z 0:00:00 na aktywny.
+    Daje grze więcej czasu na odpowiedź.
     """
     before_timer = get_timer(lvl)
-    for _ in range(2):
-        el = wait_for_element(START_XPATH.format(lvl=lvl), timeout=4)
+
+    for attempt in range(3):
+
+        el = wait_for_element(
+            START_XPATH.format(lvl=lvl),
+            timeout=8
+        )
+
         if el is not None:
             try:
-                driver.execute_script("arguments[0].click();", el)
+                driver.execute_script(
+                    "arguments[0].click();",
+                    el
+                )
             except Exception:
                 pass
 
-        time.sleep(1.2)
-        after_timer = get_timer(lvl)
-        if after_timer is not None and after_timer != before_timer and not is_zero(after_timer):
-            time.sleep(2)
-            return True
+        # czekamy aż serwer gry odświeży timer
+        for _ in range(10):
+            time.sleep(1)
+
+            after_timer = get_timer(lvl)
+
+            if after_timer and not is_zero(after_timer):
+                time.sleep(2)
+                return True
+
+        # dodatkowa próba
+        time.sleep(2)
 
     return False
 
